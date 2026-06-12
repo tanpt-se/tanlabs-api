@@ -1,0 +1,16 @@
+{
+	"compatibility_date": "2025-10-08",
+	"main": "src/index.ts",
+	"name": "tanlabs-api",
+	"upload_source_maps": true,
+	"observability": {
+		"enabled": true
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "tanlabs-db",
+			"database_id": "f8111523-5a5c-4ab5-9e79-b4f3c456bf3a"
+		}
+	]
+}
