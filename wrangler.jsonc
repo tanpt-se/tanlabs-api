@@ -7,6 +7,7 @@
 	"observability": {
 		"enabled": true
 	},
+	// Default profile: local dev (`pnpm dev`)
 	"d1_databases": [
 		{
 			"binding": "DB",
@@ -25,16 +26,42 @@
 		"APP_ORIGIN": "http://localhost:5101",
 		"ADMIN_APP_ORIGIN": "http://localhost:5102",
 		"CORS_ALLOWED_ORIGINS": "http://localhost:5101,http://localhost:5102,http://localhost:8787",
-		"ACCESS_TOKEN_SECRET": "dev-access-token-secret-change-me",
-		"TOKEN_HASH_SECRET": "dev-token-hash-secret-change-me",
-		"ACCESS_ONLY_REFRESH_SECRET": "dev-access-only-refresh-secret",
-		"TWO_FACTOR_SECRET_ENCRYPTION_KEY": "dev-two-factor-secret-key",
-		"TURNSTILE_SECRET_KEY": "1x0000000000000000000000000000000AA",
 		"AUTH_CSRF_PROTECTION_ENABLED": "false",
 		"REFRESH_TOKEN_COOKIE_SECURE": "false",
 		"EMAIL_DELIVERY_MODE": "console"
 	},
 	"triggers": {
 		"crons": ["0 3 * * *"]
+	},
+	"env": {
+		"production": {
+			"name": "tanlabs-api",
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "tanlabs-db",
+					"database_id": "f8111523-5a5c-4ab5-9e79-b4f3c456bf3a"
+				}
+			],
+			"kv_namespaces": [
+				{
+					"binding": "AUTH_KV",
+					"id": "79a2ab582c9741f68b4faa71b6781fea"
+				}
+			],
+			"vars": {
+				"ENVIRONMENT": "production",
+				"APP_ORIGIN": "https://tanlabs-client.nikinpham.com",
+				"ADMIN_APP_ORIGIN": "https://tanlabs-admin.nikinpham.com",
+				"CORS_ALLOWED_ORIGINS": "https://tanlabs-client.nikinpham.com,https://tanlabs-admin.nikinpham.com",
+				"AUTH_CSRF_PROTECTION_ENABLED": "true",
+				"REFRESH_TOKEN_COOKIE_SECURE": "true",
+				"REFRESH_TOKEN_COOKIE_SAME_SITE": "strict",
+				"EMAIL_DELIVERY_MODE": "console"
+			},
+			"triggers": {
+				"crons": ["0 3 * * *"]
+			}
+		}
 	}
 }
