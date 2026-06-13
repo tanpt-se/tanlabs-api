@@ -1,6 +1,8 @@
 /**
- * Seed auth reference data and optional demo users into D1.
- * Usage: pnpm seedAuth (requires local D1 with migrations applied)
+ * Seed auth reference data and demo users into D1.
+ *
+ * Local:  pnpm seedAuth
+ * Remote: SEED_USER_PASSWORD=... SEED_ADMIN_PASSWORD=... pnpm seedAuth:remote
  */
 import { execFileSync } from "node:child_process";
 import { writeFileSync, unlinkSync } from "node:fs";
@@ -15,12 +17,26 @@ import {
 } from "../src/common/access-control";
 
 const WRANGLER = resolve(process.cwd(), "node_modules/.bin/wrangler");
+const isRemote = process.argv.includes("--remote");
+const wranglerEnv = process.argv.includes("--env")
+	? process.argv[process.argv.indexOf("--env") + 1]
+	: isRemote
+		? "production"
+		: undefined;
 
 function d1Exec(sql: string): void {
 	const file = join(tmpdir(), `tanlabs-seed-${process.pid}.sql`);
 	writeFileSync(file, sql, "utf8");
+	const args = ["d1", "execute", "DB", "--file", file];
+	if (isRemote) {
+		args.push("--remote");
+		if (wranglerEnv) args.push("--env", wranglerEnv);
+	} else {
+		args.push("--local");
+	}
+
 	try {
-		execFileSync(WRANGLER, ["d1", "execute", "DB", "--local", "--file", file], {
+		execFileSync(WRANGLER, args, {
 			cwd: process.cwd(),
 			stdio: ["ignore", "ignore", "pipe"],
 		});
@@ -39,7 +55,30 @@ function sqlString(value: string): string {
 	return `'${value.replace(/'/g, "''")}'`;
 }
 
+function resolveSeedCredentials() {
+	const defaultUserEmail = isRemote ? "user@nikinpham.com" : "user@example.com";
+	const defaultAdminEmail = isRemote ? "admin@nikinpham.com" : "admin@example.com";
+	const seedUserEmail = process.env.SEED_USER_EMAIL ?? defaultUserEmail;
+	const seedAdminEmail = process.env.SEED_ADMIN_EMAIL ?? defaultAdminEmail;
+	const seedUserPassword = process.env.SEED_USER_PASSWORD ?? (isRemote ? "" : "Password123!");
+	const seedAdminPassword = process.env.SEED_ADMIN_PASSWORD ?? (isRemote ? "" : "Password123!");
+
+	if (isRemote) {
+		if (!seedUserPassword || seedUserPassword.length < 10) {
+			throw new Error("Remote seed requires SEED_USER_PASSWORD (min 10 chars).");
+		}
+		if (!seedAdminPassword || seedAdminPassword.length < 10) {
+			throw new Error("Remote seed requires SEED_ADMIN_PASSWORD (min 10 chars).");
+		}
+	}
+
+	return { seedUserEmail, seedAdminEmail, seedUserPassword, seedAdminPassword };
+}
+
 async function main() {
+	const { seedUserEmail, seedAdminEmail, seedUserPassword, seedAdminPassword } =
+		resolveSeedCredentials();
+	const target = isRemote ? `remote${wranglerEnv ? ` (${wranglerEnv})` : ""}` : "local";
 	const now = new Date().toISOString();
 	const statements: string[] = [
 		"DELETE FROM audit_logs;",
@@ -105,28 +144,28 @@ async function main() {
 		);
 	}
 
-	const seedUserEmail = process.env.SEED_USER_EMAIL ?? "user@example.com";
-	const seedUserPassword = process.env.SEED_USER_PASSWORD ?? "Password123!";
-	const seedAdminEmail = process.env.SEED_ADMIN_EMAIL ?? "admin@example.com";
-	const seedAdminPassword = process.env.SEED_ADMIN_PASSWORD ?? "Password123!";
-
 	const passwordHash = await hashPassword(seedUserPassword);
 	const adminPasswordHash = await hashPassword(seedAdminPassword);
 
-	for (const [email, roleId, hash] of [
-		[seedUserEmail, userRoleId, passwordHash],
-		[seedAdminEmail, adminRoleId, adminPasswordHash],
+	for (const [email, roleId, hash, displayName] of [
+		[seedUserEmail, userRoleId, passwordHash, "Client User"],
+		[seedAdminEmail, adminRoleId, adminPasswordHash, "Admin User"],
 	] as const) {
 		const normalized = email.trim().toLowerCase();
 		const id = createId();
 		statements.push(
 			`INSERT OR REPLACE INTO users (id, email, email_normalized, display_name, password_hash, email_verified_at, must_set_password, two_factor_enabled, status, role_id, created_at, updated_at)
-       VALUES (${sqlString(id)}, ${sqlString(email)}, ${sqlString(normalized)}, ${sqlString(email.split("@")[0]!)}, ${sqlString(hash)}, ${sqlString(now)}, 0, 0, 'ACTIVE', ${sqlString(roleId)}, ${sqlString(now)}, ${sqlString(now)});`,
+       VALUES (${sqlString(id)}, ${sqlString(email)}, ${sqlString(normalized)}, ${sqlString(displayName)}, ${sqlString(hash)}, ${sqlString(now)}, 0, 0, 'ACTIVE', ${sqlString(roleId)}, ${sqlString(now)}, ${sqlString(now)});`,
 		);
 	}
 
 	d1Exec(statements.join("\n"));
-	console.log("Auth seed completed.");
+	console.log(`Auth seed completed (${target}).`);
+	console.log(`Client: ${seedUserEmail}`);
+	console.log(`Admin:  ${seedAdminEmail}`);
+	if (!isRemote) {
+		console.log("Password: Password123! (local default)");
+	}
 }
 
 main().catch((error) => {

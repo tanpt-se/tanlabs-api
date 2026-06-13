@@ -38,6 +38,7 @@
 		"predeploy": "wrangler d1 migrations apply DB --remote --env production",
 		"schema": "npx chanfana",
 		"seedLocalDb": "wrangler d1 migrations apply DB --local",
-		"seedAuth": "tsx scripts/seed-auth.ts"
+		"seedAuth": "tsx scripts/seed-auth.ts",
+		"seedAuth:remote": "tsx scripts/seed-auth.ts --remote --env production"
 	}
 }
