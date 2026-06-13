@@ -1,6 +1,6 @@
 {
 	"name": "tanlabs-api",
-	"description": "Complete backend API template using Hono + Chanfana + D1 + Vitest.",
+	"description": "TanLabs Auth API on Cloudflare Workers + Hono + Chanfana + D1.",
 	"cloudflare": {
 		"label": "Backend OpenAPI Template",
 		"products": [
@@ -16,27 +16,28 @@
 		"publish": true
 	},
 	"dependencies": {
+		"@paralleldrive/cuid2": "2.2.2",
 		"chanfana": "2.8.3",
 		"hono": "4.11.1",
+		"jose": "6.0.11",
+		"otpauth": "9.4.0",
 		"zod": "3.25.67"
 	},
 	"devDependencies": {
-		"@cloudflare/vitest-pool-workers": "0.11.1",
+		"@cloudflare/workers-types": "4.20260613.1",
 		"@types/node": "24.10.1",
-		"@vitest/runner": "3.2.4",
-		"@vitest/snapshot": "3.2.4",
+		"tsx": "4.19.4",
 		"typescript": "5.9.3",
-		"vitest": "3.2.4",
 		"wrangler": "4.88.0"
 	},
 	"private": true,
 	"scripts": {
 		"cf-typegen": "wrangler types",
 		"deploy": "wrangler deploy",
-		"dev": "pnpm seedLocalDb && wrangler dev",
+		"dev": "pnpm seedLocalDb && pnpm seedAuth && wrangler dev",
 		"predeploy": "wrangler d1 migrations apply DB --remote",
 		"schema": "npx chanfana",
 		"seedLocalDb": "wrangler d1 migrations apply DB --local",
-		"test": "wrangler deploy --dry-run && npx vitest run --config tests/vitest.config.mts"
+		"seedAuth": "tsx scripts/seed-auth.ts"
 	}
 }

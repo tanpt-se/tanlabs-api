@@ -1,50 +1,93 @@
 import { ApiException, fromHono } from "chanfana";
 import { Hono } from "hono";
-import { tasksRouter } from "./endpoints/tasks/router";
-import { ContentfulStatusCode } from "hono/utils/http-status";
-import { DummyEndpoint } from "./endpoints/dummyEndpoint";
+import { cors } from "hono/cors";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { getApiRuntimeConfig } from "./config/runtime";
+import type { AppVariables } from "./types";
+import {
+	authRouter,
+	healthRouter,
+	sessionsRouter,
+	usersRouter,
+} from "./endpoints/router";
+import { isAppException } from "./lib/errors";
+import { createServices } from "./services/container";
+import { runAuthMaintenance } from "./cron/auth-maintenance";
 
-// Start a Hono app
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+
+app.use("*", async (c, next) => {
+	const config = getApiRuntimeConfig(c.env);
+	const services = createServices(c.env);
+	c.set("config", config);
+	c.set("services", services);
+	c.set("requestId", crypto.randomUUID());
+	await next();
+});
+
+app.use(
+	"*",
+	cors({
+		origin: (origin, c) => {
+			const allowed = c.get("config").app.corsAllowedOrigins;
+			if (!origin) return "*";
+			return allowed.includes(origin) ? origin : "";
+		},
+		allowHeaders: [
+			"Content-Type",
+			"Authorization",
+			"X-CSRF-Token",
+			"X-Auth-Client",
+			"X-Auth-Internal-Refresh-Secret",
+			"X-Auth-Refresh-Mode",
+			"X-Auth-Service-Id",
+			"X-Auth-Timestamp",
+			"X-Auth-Signature",
+		],
+		allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+		credentials: true,
+	}),
+);
 
 app.onError((err, c) => {
 	if (err instanceof ApiException) {
-		// If it's a Chanfana ApiException, let Chanfana handle the response
 		return c.json(
 			{ success: false, errors: err.buildResponse() },
 			err.status as ContentfulStatusCode,
 		);
 	}
-
-	console.error("Global error handler caught:", err); // Log the error if it's not known
-
-	// For other errors, return a generic 500 response
+	if (isAppException(err)) {
+		return c.json(err.toJSON(), err.status as ContentfulStatusCode);
+	}
+	console.error("Global error handler caught:", err instanceof Error ? err.message : err);
 	return c.json(
-		{
-			success: false,
-			errors: [{ code: 7000, message: "Internal Server Error" }],
-		},
+		{ code: "INTERNAL_ERROR", message: "Internal Server Error", status: 500 },
 		500,
 	);
 });
 
-// Setup OpenAPI registry
 const openapi = fromHono(app, {
 	docs_url: "/",
+	openapi_url: "/openapi.json",
+	raiseUnknownParameters: false,
 	schema: {
 		info: {
-			title: "My Awesome API",
-			version: "2.0.0",
-			description: "This is the documentation for my awesome API.",
+			title: "TanLabs Auth API",
+			version: "1.0.0",
+			description:
+				"Authentication and session management API on Cloudflare Workers + D1.",
 		},
 	},
 });
 
-// Register Tasks Sub router
-openapi.route("/tasks", tasksRouter);
+openapi.route("/auth", authRouter);
+openapi.route("/users", usersRouter);
+openapi.route("/auth/sessions", sessionsRouter);
+openapi.route("/health", healthRouter);
 
-// Register other endpoints
-openapi.post("/dummy/:slug", DummyEndpoint);
-
-// Export the Hono app
-export default app;
+export default {
+	fetch: app.fetch,
+	scheduled: async (event: ScheduledEvent, env: Env, ctx: ExecutionContext) => {
+		ctx.waitUntil(runAuthMaintenance(env));
+	},
+};
