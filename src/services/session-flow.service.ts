@@ -6,7 +6,6 @@ import {
 	assertInternalRefreshReplayGuard,
 	assertNoInternalRefreshHeadersOnPublicRoute,
 	assertOriginIfPresent,
-	assertTrustedBrowserOrigin,
 	assertTrustedInternalRefreshRequest,
 	clearCsrfCookie,
 	clearRefreshTokenCookie,
@@ -144,7 +143,7 @@ export class SessionFlowService {
 		await this.support.rateLimit.recordRefreshAttempt(getRequestIp(c));
 
 		const rawRefreshToken = getCookie(c, resolveRefreshTokenCookieName(c, this.support.config));
-		if (rawRefreshToken) assertTrustedBrowserOrigin(c, this.support.config);
+		if (rawRefreshToken) assertOriginIfPresent(c, this.support.config);
 
 		if (!rawRefreshToken) {
 			throw new AppException({
@@ -242,7 +241,7 @@ export class SessionFlowService {
 		assertOriginIfPresent(c, this.support.config);
 		const bearerToken = getBearerToken(c.req.header("authorization"));
 		const rawRefreshToken = getCookie(c, resolveRefreshTokenCookieName(c, this.support.config));
-		if (rawRefreshToken) assertTrustedBrowserOrigin(c, this.support.config);
+		if (rawRefreshToken) assertOriginIfPresent(c, this.support.config);
 		assertCsrfToken(c, this.support.config);
 
 		let sessionId: string | null = null;

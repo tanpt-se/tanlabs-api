@@ -29,6 +29,16 @@ export function resolveRequestOrigin(c: Context): string | null {
 	const refererHeader = c.req.header("referer");
 	if (refererHeader) return normalizeOrigin(refererHeader);
 
+	// Same-origin browser calls through a Pages `/api` proxy often omit Origin/Referer.
+	const forwardedHost = c.req.header("x-forwarded-host");
+	if (forwardedHost) {
+		const host = forwardedHost.split(",")[0]?.trim();
+		if (host) {
+			const proto = (c.req.header("x-forwarded-proto") ?? "https").split(",")[0]?.trim();
+			return normalizeOrigin(`${proto}://${host}`);
+		}
+	}
+
 	return null;
 }
 
